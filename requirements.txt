@@ -1,0 +1,23 @@
+# Pinned to a version combination that has been tested and confirmed working.
+#
+# IMPORTANT: mediapipe 0.10.14+ removed the legacy `mp.solutions.hands` API
+# used in this project in favour of a newer Tasks API. Stick to <0.10.14
+# unless you plan to migrate utils.py to the new mediapipe Tasks API.
+mediapipe==0.10.13
+
+# Use opencv-python (NOT opencv-python-headless) on your own machine —
+# predict_webcam.py needs cv2.imshow(), which requires GUI support.
+# (This project was validated in a headless server environment using
+# opencv-python-headless purely for the non-GUI extraction/training steps.)
+opencv-python==4.13.0.90
+
+scikit-learn>=1.3,<2.0
+pandas>=2.0
+numpy>=1.24,<3.0
+joblib>=1.3
+tqdm>=4.65
+
+# For the web UI (src/web_server.py) — not needed if you're only using
+# the desktop scripts (predict_webcam.py, spell_words.py)
+fastapi>=0.100
+uvicorn>=0.23

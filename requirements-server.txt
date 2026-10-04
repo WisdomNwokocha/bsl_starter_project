@@ -1,0 +1,20 @@
+# Requirements for running web_server.py on a HEADLESS cloud host (Railway,
+# Fly.io, Render, etc). The only difference from requirements.txt is
+# opencv-python -> opencv-python-headless: a cloud container has no display,
+# and plain opencv-python fails to import there because it depends on GUI
+# libraries (libGL etc) that aren't present. This project only uses
+# cv2.imdecode/cvtColor in the web server path — no cv2.imshow() — so
+# headless is safe here. Keep using requirements.txt (not this file) on
+# your own machine, where predict_webcam.py still needs the GUI build.
+
+mediapipe==0.10.13
+opencv-python-headless==4.13.0.90
+
+scikit-learn>=1.3,<2.0
+pandas>=2.0
+numpy>=1.24,<3.0
+joblib>=1.3
+tqdm>=4.65
+
+fastapi>=0.100
+uvicorn>=0.23

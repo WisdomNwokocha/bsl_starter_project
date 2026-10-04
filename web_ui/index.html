@@ -1,0 +1,529 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>BSL Live Spelling</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #161320;
+    --bg-raised: #1F1B2E;
+    --text: #F2EEE6;
+    --text-dim: #A69FB5;
+    --amber: #E6A54B;
+    --sage: #7FB69E;
+    --border: #322C46;
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+  html, body {
+    height: 100%;
+  }
+
+  body {
+    margin: 0;
+    min-height: 100vh;
+    min-height: 100dvh;
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Fraunces', serif;
+    display: flex;
+    flex-direction: column;
+    overflow-x: hidden;
+  }
+
+  /* ---------- Top bar: pill mode toggle ---------- */
+
+  .top-bar {
+    display: flex;
+    justify-content: center;
+    padding: max(16px, env(safe-area-inset-top)) 16px 8px;
+    flex-shrink: 0;
+  }
+
+  .mode-toggle {
+    display: flex;
+    background: var(--bg-raised);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 4px;
+    gap: 4px;
+    width: 100%;
+    max-width: 420px;
+  }
+
+  .mode-btn {
+    flex: 1;
+    background: transparent;
+    color: var(--text-dim);
+    border: none;
+    border-radius: 999px;
+    padding: 10px 14px;
+    font-family: 'Fraunces', serif;
+    font-size: 0.85rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background 0.2s ease, color 0.2s ease;
+    white-space: nowrap;
+  }
+
+  .mode-btn.active {
+    background: var(--amber);
+    color: #241A0A;
+    font-weight: 600;
+  }
+
+  .mode-btn:focus-visible {
+    outline: 2px solid var(--amber);
+    outline-offset: 2px;
+  }
+
+  /* ---------- Main scroll area ---------- */
+
+  main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 100%;
+    padding: 8px 16px 16px;
+    overflow-y: auto;
+  }
+
+  /* ---------- Shared "stage" display card (camera / hand canvas) ---------- */
+
+  .stage {
+    position: relative;
+    width: 100%;
+    max-width: 480px;
+    aspect-ratio: 4 / 3;
+    background: var(--bg-raised);
+    border-radius: 20px;
+    border: 1px solid var(--border);
+    overflow: hidden;
+    flex-shrink: 0;
+  }
+
+  .stage.hidden { display: none; }
+
+  .stage video,
+  .stage canvas {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+
+  .stage video {
+    transform: scaleX(-1); /* mirror for a natural view; detection still runs on the raw frame server-side */
+  }
+
+  .camera-dot {
+    position: absolute;
+    top: 12px;
+    left: 12px;
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: var(--sage);
+    box-shadow: 0 0 0 4px rgba(127, 182, 158, 0.18);
+    z-index: 2;
+  }
+
+  .camera-dot.off {
+    background: var(--text-dim);
+    box-shadow: none;
+  }
+
+  /* ---------- Detect mode content ---------- */
+
+  #detectModeContent {
+    width: 100%;
+    max-width: 480px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+    margin-top: 18px;
+  }
+
+  #detectModeContent.hidden { display: none; }
+
+  .word-display {
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 700;
+    font-size: clamp(2.4rem, 13vw, 5rem);
+    letter-spacing: 0.02em;
+    text-align: center;
+    line-height: 1;
+    min-height: 1.2em;
+    color: var(--text);
+    transition: color 0.4s ease, transform 0.4s ease;
+    word-break: break-all;
+  }
+
+  .word-display.empty {
+    color: var(--text-dim);
+    font-weight: 500;
+    font-size: clamp(1.15rem, 4.5vw, 1.6rem);
+    font-family: 'Fraunces', serif;
+  }
+
+  .word-display.spoken {
+    color: var(--sage);
+    transform: scale(1.04);
+  }
+
+  .status-row {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    color: var(--text-dim);
+    font-size: 0.95rem;
+  }
+
+  .status-row .letter {
+    color: var(--amber);
+    font-weight: 600;
+  }
+
+  .progress-dots {
+    display: flex;
+    gap: 5px;
+  }
+
+  .progress-dots .dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--border);
+    transition: background 0.15s ease;
+  }
+
+  .progress-dots .dot.filled {
+    background: var(--amber);
+  }
+
+  .confirmation {
+    font-size: 1rem;
+    color: var(--sage);
+    min-height: 1.5em;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    text-align: center;
+  }
+
+  .confirmation.visible {
+    opacity: 1;
+  }
+
+  .controls {
+    display: flex;
+    gap: 16px;
+  }
+
+  button {
+    font-family: 'Fraunces', serif;
+    font-size: 0.95rem;
+    background: transparent;
+    color: var(--text-dim);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 10px 22px;
+    cursor: pointer;
+    transition: border-color 0.2s ease, color 0.2s ease;
+  }
+
+  button:hover {
+    border-color: var(--amber);
+    color: var(--text);
+  }
+
+  button:focus-visible {
+    outline: 2px solid var(--amber);
+    outline-offset: 2px;
+  }
+
+  /* ---------- Start overlay ---------- */
+
+  .start-overlay {
+    position: fixed;
+    inset: 0;
+    background: var(--bg);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 20px;
+    padding: 32px;
+    z-index: 10;
+    text-align: center;
+  }
+
+  .start-overlay p {
+    color: var(--text-dim);
+    max-width: 340px;
+    line-height: 1.5;
+    font-size: 0.95rem;
+  }
+
+  .start-overlay .word-display {
+    font-size: clamp(1.8rem, 8vw, 2.6rem);
+  }
+
+  .start-overlay button {
+    background: var(--amber);
+    color: #241A0A;
+    border-color: transparent;
+    font-weight: 600;
+    padding: 14px 32px;
+  }
+
+  .start-overlay.hidden {
+    display: none;
+  }
+
+  /* ---------- Sign (type/speak) mode ---------- */
+
+  .sign-player-section {
+    width: 100%;
+    max-width: 480px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 14px;
+    margin-top: 18px;
+  }
+
+  .sign-player-section.hidden { display: none; }
+
+  .section-label {
+    color: var(--text-dim);
+    font-size: 0.9rem;
+    margin: 0;
+    text-align: center;
+  }
+
+  .sign-caption {
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 700;
+    font-size: 1.4rem;
+    color: var(--amber);
+    min-height: 1.4em;
+    text-align: center;
+  }
+
+  .sign-caption .unsupported {
+    color: var(--text-dim);
+    font-family: 'Fraunces', serif;
+    font-weight: 400;
+    font-size: 0.95rem;
+  }
+
+  /* This spacer only appears in sign mode, so content doesn't sit under
+     the fixed bottom input bar. */
+  .bottom-bar-spacer {
+    height: 0;
+    flex-shrink: 0;
+  }
+
+  .bottom-bar-spacer.active {
+    height: calc(88px + var(--safe-bottom));
+  }
+
+  /* ---------- Fixed bottom input bar (sign mode only) ---------- */
+
+  .bottom-bar {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    display: flex;
+    justify-content: center;
+    padding: 10px 16px calc(14px + var(--safe-bottom));
+    background: linear-gradient(180deg, rgba(22,19,32,0) 0%, var(--bg) 30%);
+    z-index: 5;
+  }
+
+  .bottom-bar.hidden { display: none; }
+
+  .sign-input-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    max-width: 480px;
+    background: var(--bg-raised);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 6px 6px 6px 18px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.35);
+  }
+
+  .sign-input-row input {
+    flex: 1;
+    min-width: 0;
+    font-family: 'Fraunces', serif;
+    font-size: 1rem;
+    background: transparent;
+    border: none;
+    color: var(--text);
+    padding: 10px 0;
+  }
+
+  .sign-input-row input:focus {
+    outline: none;
+  }
+
+  .sign-input-row input::placeholder {
+    color: var(--text-dim);
+  }
+
+  .icon-btn {
+    flex-shrink: 0;
+    width: 42px;
+    height: 42px;
+    padding: 0;
+    border-radius: 50%;
+    background: transparent;
+    color: var(--text-dim);
+    border: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.1rem;
+  }
+
+  #micButton.listening {
+    background: var(--amber);
+    color: #241A0A;
+    border-color: transparent;
+    animation: pulse 1.2s ease-in-out infinite;
+  }
+
+  #micButton:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+
+  #signItButton {
+    flex-shrink: 0;
+    background: var(--amber);
+    color: #241A0A;
+    border-color: transparent;
+    font-weight: 600;
+    padding: 10px 20px;
+    border-radius: 999px;
+  }
+
+  #signItButton:hover {
+    border-color: transparent;
+    color: #241A0A;
+    opacity: 0.9;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.6; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .word-display, .confirmation { transition: none; }
+    #micButton.listening { animation: none; }
+  }
+
+  /* Slightly larger stage on bigger phones / small tablets and up. */
+  @media (min-width: 560px) {
+    main { padding-top: 16px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="start-overlay" id="startOverlay">
+  <div class="word-display empty">BSL Live Spelling</div>
+  <p>Hold each letter steady to spell a word. Pause for a moment when you're done — it will be spoken aloud automatically.</p>
+  <button id="startButton">Turn on camera</button>
+</div>
+
+<div class="top-bar">
+  <div class="mode-toggle">
+    <button id="detectModeBtn" class="mode-btn active">🖐 Detect</button>
+    <button id="signModeBtn" class="mode-btn">⌨️ Type or speak</button>
+  </div>
+</div>
+
+<main>
+  <div class="stage" id="detectModeSection">
+    <div class="camera-dot off" id="cameraDot"></div>
+    <video id="video" autoplay playsinline muted></video>
+  </div>
+
+  <div id="detectModeContent">
+    <div class="word-display empty" id="wordDisplay">(spell a word...)</div>
+
+    <div class="status-row">
+      <span id="statusText">No hand detected</span>
+      <div class="progress-dots" id="progressDots"></div>
+    </div>
+
+    <div class="confirmation" id="confirmation"></div>
+
+    <div class="controls">
+      <button id="clearButton">Clear word</button>
+    </div>
+  </div>
+
+  <div class="sign-player-section hidden" id="signModeSection">
+    <p class="section-label">Type or speak a word to see it signed</p>
+    <div class="stage">
+      <canvas id="signCanvas"></canvas>
+    </div>
+    <div class="sign-caption" id="signCaption"></div>
+  </div>
+
+  <div class="bottom-bar-spacer" id="bottomBarSpacer"></div>
+</main>
+
+<div class="bottom-bar hidden" id="bottomBar">
+  <div class="sign-input-row">
+    <input type="text" id="signTextInput" placeholder="Type a word..." maxlength="40">
+    <button id="micButton" class="icon-btn" aria-label="Speak a word">🎤</button>
+    <button id="signItButton">Sign it</button>
+  </div>
+</div>
+
+<canvas id="captureCanvas" style="display:none;"></canvas>
+
+<script src="/static/word_builder.js"></script>
+<script src="/static/sign_sequence.js"></script>
+<script src="/static/hand_skeleton.js"></script>
+<script src="/static/app.js"></script>
+<script src="/static/sign_animation_player.js"></script>
+<script src="/static/sign_player.js"></script>
+<script>
+  // Show the fixed bottom input bar only while sign (type/speak) mode is active,
+  // mirroring signModeSection's own visibility so the two never disagree.
+  (function () {
+    const bottomBar = document.getElementById("bottomBar");
+    const bottomBarSpacer = document.getElementById("bottomBarSpacer");
+    const signModeSection = document.getElementById("signModeSection");
+
+    function syncBottomBar() {
+      const showBar = !signModeSection.classList.contains("hidden");
+      bottomBar.classList.toggle("hidden", !showBar);
+      bottomBarSpacer.classList.toggle("active", showBar);
+    }
+
+    const observer = new MutationObserver(syncBottomBar);
+    observer.observe(signModeSection, { attributes: true, attributeFilter: ["class"] });
+    syncBottomBar();
+  })();
+</script>
+<script src="/static/mode_toggle.js"></script>
+</body>
+</html>
