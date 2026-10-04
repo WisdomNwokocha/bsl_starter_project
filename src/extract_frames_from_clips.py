@@ -92,19 +92,37 @@ def main():
     counters = {"extracted": 0, "skipped": 0}
 
     # --- Source 1: the single canonical clip per letter, if present ---
+    # Supports BOTH layouts, matching web_server.py and
+    # extract_sign_animations.py: a flat file (sign_clips/A.mp4) or a
+    # folder containing one or more takes (sign_clips/A/take1.mp4).
     if os.path.isdir(SIGN_CLIPS_DIR):
-        clip_files = [f for f in os.listdir(SIGN_CLIPS_DIR) if f.lower().endswith(VALID_EXTENSIONS)]
-        if clip_files:
-            print(f"Found {len(clip_files)} canonical clip(s) in web_ui/sign_clips/: {clip_files}")
-        for clip_file in clip_files:
-            label = os.path.splitext(clip_file)[0]  # "A.mp4" -> "A"
-            print(f"Processing canonical clip for '{label}' ({clip_file})...")
-            process_video(
-                os.path.join(SIGN_CLIPS_DIR, clip_file),
-                label,
-                f"{label}_from_clip.jpg",
-                counters,
-            )
+        for entry in sorted(os.listdir(SIGN_CLIPS_DIR)):
+            entry_path = os.path.join(SIGN_CLIPS_DIR, entry)
+
+            if os.path.isfile(entry_path) and entry.lower().endswith(VALID_EXTENSIONS):
+                # Flat file layout: "A.mp4" -> label "A"
+                label = os.path.splitext(entry)[0]
+                print(f"Processing canonical clip for '{label}' ({entry})...")
+                process_video(entry_path, label, f"{label}_from_clip.jpg", counters)
+
+            elif os.path.isdir(entry_path):
+                # Folder layout: "A/take1.mp4" -> label "A"
+                label = entry
+                video_files = [
+                    f for f in sorted(os.listdir(entry_path))
+                    if f.lower().endswith(VALID_EXTENSIONS)
+                ]
+                if not video_files:
+                    continue
+                # Use the first take found as the canonical one for this source.
+                chosen_file = video_files[0]
+                print(f"Processing canonical clip for '{label}' ({chosen_file})...")
+                process_video(
+                    os.path.join(entry_path, chosen_file),
+                    label,
+                    f"{label}_from_clip.jpg",
+                    counters,
+                )
 
     # --- Source 2: as many raw take videos per letter as you've collected ---
     if os.path.isdir(RAW_VIDEOS_DIR):
